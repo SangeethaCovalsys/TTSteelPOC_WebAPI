@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+https://go.microsoft.com/fwlink/?LinkID=208121. 
+-->
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <History>True|2025-08-18T05:18:09.1966450Z||;True|2025-04-30T13:48:05.1030258+05:30||;True|2025-04-30T13:47:29.4232363+05:30||;True|2025-04-30T11:38:44.3164509+05:30||;True|2025-04-29T17:46:12.7608259+05:30||;True|2025-04-28T18:07:44.7305449+05:30||;True|2025-04-28T18:07:03.2361170+05:30||;True|2025-04-28T18:06:53.8014093+05:30||;True|2025-04-28T17:49:27.5059468+05:30||;False|2025-04-28T17:46:42.9965761+05:30||;</History>
+    <_PublishTargetUrl>C:\MobApp\Publish</_PublishTargetUrl>
+    <LastFailureDetails />
+  </PropertyGroup>
+</Project>
