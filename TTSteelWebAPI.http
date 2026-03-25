@@ -1,0 +1,6 @@
+@TTSteelWebAPI_HostAddress = http://localhost:5032
+
+GET {{TTSteelWebAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

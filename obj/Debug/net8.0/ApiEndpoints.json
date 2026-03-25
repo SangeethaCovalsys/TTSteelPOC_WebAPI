@@ -1,0 +1,144 @@
+[
+  {
+    "ContainingType": "TTSteelWebAPI.Controllers.ProductionExecutionController",
+    "Method": "GetUnitSourceCounts",
+    "RelativePath": "api/GetEachJobOwnCounts",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "unitCode",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "TTSteelWebAPI.Controllers.ProductionExecutionController",
+    "Method": "GetJobBatchDetails",
+    "RelativePath": "api/GetJobBatchDetails",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "schNo",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "TTSteelWebAPI.Controllers.ProductionExecutionController",
+    "Method": "GetScheduleDetails",
+    "RelativePath": "api/GetSchduleOfJobOwn",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "unitCode",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "source",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "TTSteelWebAPI.Controllers.ProductionExecutionController",
+    "Method": "GetScheduleSizeCount",
+    "RelativePath": "api/GetScheduleSizeCount",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "schNo",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "TTSteelWebAPI.Controllers.ProductionExecutionController",
+    "Method": "GetScheduleSizeDetails",
+    "RelativePath": "api/GetScheduleSizeDetails",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "schNo",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "TTSteelWebAPI.Controllers.ProductionExecutionController",
+    "Method": "GetUnitCounts",
+    "RelativePath": "api/GetSlitRewindCutCounts",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "TTSteelWebAPI.Controllers.MasterController",
+    "Method": "GetSapUsers",
+    "RelativePath": "api/sapUsers",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "TTSteelWebAPI.Controllers.LoginController",
+    "Method": "LoginAsync",
+    "RelativePath": "cvs/login",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "loginModel",
+        "Type": "TTSteelWebAPI.Model.Login.loginModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "TTSteelWebAPI.Controllers.WeatherForecastController",
+    "Method": "Get",
+    "RelativePath": "WeatherForecast",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[TTSteelWebAPI.WeatherForecast, TTSteelWebAPI, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ],
+    "EndpointName": "GetWeatherForecast"
+  }
+]
