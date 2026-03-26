@@ -6,19 +6,60 @@
         {
             public string U_SchNo { get; set; }
             public string U_CustName { get; set; }
-            public string U_CustCode { get; set; }
+            public string U_Grade { get; set; }
             public decimal? U_TIPSQty { get; set; }
             public string U_CoilNo { get; set; }
         }
         public class JobBatchDto
         {
-            public string U_JBName { get; set; }
-            public string U_SchNo { get; set; }
+            public string U_IPBatch { get; set; }
+            public int? U_IPLn { get; set; }
+
+            public string U_ItemCode { get; set; }
+            public int? U_Level { get; set; }
+
+            public decimal? U_SchPcs { get; set; }
             public decimal? U_SchQty { get; set; }
+
+            public decimal? U_Pkts { get; set; }
+            public decimal? U_PcPerPkt { get; set; }
+
+            public string U_UOM { get; set; }
+            public DateTime? U_RcptDate { get; set; }
+
+            public decimal? U_TrimWid { get; set; }
+            public decimal? U_CLen { get; set; }
+            public string U_CLenUOM { get; set; }
+
+            public string U_WhseCode { get; set; }
+            public string U_MillCode { get; set; }
+            public string U_MillName { get; set; }
+
+            public string U_JBCode { get; set; }
+            public string U_JBName { get; set; }
+
+            public decimal? U_MaxYield { get; set; }
+
+            public string U_Surface { get; set; }
+            public string U_Coating { get; set; }
+            public string U_Edge { get; set; }
+            public string U_Oiling { get; set; }
+
+            public string U_SchNo { get; set; }
+
             public string U_CoilNo { get; set; }
             public string U_Grade { get; set; }
+
             public decimal? U_Thick { get; set; }
             public decimal? U_Width { get; set; }
+
+            public string U_Form { get; set; }
+            public string U_Type { get; set; }
+
+            public int? DocNum { get; set; }
+
+            public string BarcdSts { get; set; }
+            public string Sts { get; set; }
         }
         public class CountDto
         {
