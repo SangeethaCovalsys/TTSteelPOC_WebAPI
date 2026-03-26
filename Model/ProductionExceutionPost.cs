@@ -169,7 +169,7 @@ namespace TTSteelWebAPI.Model
 
             public string? U_Select { get; set; }
             public string? U_WONo { get; set; }
-            public string U_WOId { get; set; }
+            public string? U_WOId { get; set; }
             public string? U_Roll { get; set; }
 
             public string? U_IPLn { get; set; }
@@ -247,16 +247,16 @@ namespace TTSteelWebAPI.Model
             public string? U_Edge { get; set; }
 
             public string? U_CPartNo { get; set; }
-            public string U_EqSpec { get; set; }
+            public string? U_EqSpec { get; set; }
 
             public decimal? U_PlanOP { get; set; }
             public decimal? U_Produced { get; set; }
             public decimal? U_OpenQty { get; set; }
 
-            public string U_Status { get; set; }
+            public string? U_Status { get; set; }
 
-            public string U_CustSpec { get; set; }
-            public string U_Sequence { get; set; }
+            public string? U_CustSpec { get; set; }
+            public string? U_Sequence { get; set; }
 
             public short? U_ActPkt { get; set; }
 
