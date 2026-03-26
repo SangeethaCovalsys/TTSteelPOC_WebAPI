@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PortalAPI.Data;
 using System.Data;
+using TTSteelWebAPI.Model;
+using static TTSteelWebAPI.Model.ProductionExceutionPost;
 using static TTSteelWebAPI.Model.ProductionExecutionClass;
 
 namespace TTSteelWebAPI.Controllers
@@ -102,7 +104,7 @@ namespace TTSteelWebAPI.Controllers
             SELECT DISTINCT  
                 a.""U_SchNo"",
                 b.""U_CustName"",
-                b.""U_CustCode"",
+                d.""U_Grade"",
                 a.""U_TIPSQty"",
                 d.""U_CoilNo"" 
             FROM ""@CCO_TRNS_PRCSCH_HD"" a  
@@ -228,45 +230,75 @@ FROM (
             {
                 using var conn = _databaseContext.CreateConnection();
                 conn.Open();
-
                 var query = $@"
-            SELECT DISTINCT 
-                T0.""U_JBName"",
-                a.""U_SchNo"",
-                b.""U_SchQty"",
-                T0.""U_CoilNo"",
-                T0.""U_Grade"",
-                T0.""U_Thick"",
-                T0.""U_Width""
-            FROM ""@CCO_TRNS_PRCSCH_HD"" a
-            INNER JOIN ""@CCO_TRNS_PRCSCH_C1"" b 
-                ON a.""DocEntry"" = b.""DocEntry""
-            INNER JOIN ""@CCO_TRNS_WRKORD_HD"" c 
-                ON a.""DocEntry"" = c.""U_SchId""
-                AND a.""U_SchNo"" = c.""U_SchNo""
-                AND b.""LineId"" = c.""U_IPLn""
-                AND b.""U_IPBatch"" = c.""U_IPBatch""
-            INNER JOIN OIBT T0 
-                ON T0.""BatchNum"" = c.""U_IPBatch""
-                AND T0.""ItemCode"" = c.""U_IPItem""
+Select Distinct 
+    C.""U_IPBatch"",
+    C.""U_IPLn"",
+    b.""U_ItemCode"",
+    b.""U_Level"",
+    b.""U_SchPcs"",
+    b.""U_SchQty"",
+    b.""U_Pkts"",
+    b.""U_PcPerPkt"",
+    b.""U_UOM"",
+    b.""U_RcptDate"",
+    b.""U_TrimWid"",
+    b.""U_CLen"",
+    b.""U_CLenUOM"",
+    b.""U_WhseCode"",
+    b.""U_MillCode"",
+    b.""U_MillName"",
+    T0.""U_JBCode"",
+    b.""U_MaxYield"",
+    b.""U_Surface"",
+    b.""U_Coating"",
+    b.""U_Edge"",
+    b.""U_Oiling"",
+    T0.""U_JBName"",
+    a.""U_SchNo"",
+    b.""U_SchQty"",
+    T0.""U_CoilNo"",
+    T0.""U_Grade"",
+    T0.""U_Thick"",
+    T0.""U_Width"",
+    T0.""U_Form"",
+    T0.""U_Grade"",
+    T0.""U_Type"",
+    c.""DocNum"",
+    CAST('S' AS VARCHAR(50)) ""BarcdSts"",
+    CAST('Open' AS VARCHAR(50)) ""Sts""
 
-            WHERE a.""U_SchNo"" = '{schNo}'
+from ""@CCO_TRNS_PRCSCH_HD"" a,
+     ""@CCO_TRNS_PRCSCH_C1"" b,
+     ""@CCO_TRNS_WRKORD_HD"" c
 
-            AND c.""DocEntry"" NOT IN (
-                SELECT b.""U_WOId""
-                FROM ""@CCO_TRNS_PRDEXE_HD"" peh
-                INNER JOIN ""@CCO_TRNS_PRDEXE_C1"" b 
-                    ON peh.""DocEntry"" = b.""DocEntry""
-                INNER JOIN ""@CCO_TRNS_WRKORD_HD"" c2 
-                    ON b.""U_WOId"" = c2.""DocEntry""
-                WHERE b.""U_Select"" = 'Y'
-                  AND b.""U_WOId"" IS NOT NULL
-            )";
+INNER JOIN OIBT T0 
+    on T0.""BatchNum"" = C.""U_IPBatch"" 
+   AND T0.""ItemCode"" = c.""U_IPItem""
 
-                var result = await conn.QueryAsync<JobBatchDto>(query, new
-                {
-                    SchNo = schNo
-                });
+Where 
+    a.""DocEntry"" = b.""DocEntry"" 
+and A.""DocEntry"" = c.""U_SchId"" 
+and a.""U_SchNo"" = C.""U_SchNo"" 
+and b.""LineId"" = c.""U_IPLn"" 
+and b.""U_IPBatch"" = c.""U_IPBatch"" 
+and a.""U_SchNo"" = '{schNo}'  
+
+AND C.""DocEntry"" not in (
+    Select B.""U_WOId"" 
+    from ""@CCO_TRNS_PRDEXE_HD"" peh,
+         ""@CCO_TRNS_PRDEXE_C1"" b,
+         ""@CCO_TRNS_WRKORD_HD"" c 
+
+    Where a.""DocEntry"" = b.""DocEntry"" 
+      and b.""U_WOId"" = c.""DocEntry"" 
+      and b.""U_Select"" = 'Y' 
+      and B.""U_WOId"" is not null 
+      and B.""U_WOId"" IS NOT NULL 
+      and a.""U_SchNo"" = '{schNo}'
+);";
+
+                var result = await conn.QueryAsync<JobBatchDto>(query);
 
                 return Ok(result);
             }
@@ -374,6 +406,261 @@ ORDER BY wc1.""U_Width""";
                 });
             }
         }
+        [HttpPost("AddProductionExecution")]
+        public async Task<IActionResult> AddProductionExecution([FromBody] CCO_TRNS_PRDEXE_HD payload)
+        {
+            using var conn = _databaseContext.CreateConnection();
+            conn.Open();
 
+            using var trans = conn.BeginTransaction();
+
+            try
+            {
+                // ================= DocEntry =================
+                var docEntry = await conn.ExecuteScalarAsync<int>(
+                    @"SELECT IFNULL(MAX(""DocEntry""),0)+1 FROM ""@CCO_TRNS_PRDEXE_HD""",
+                    transaction: trans
+                );
+
+                payload.DocEntry = docEntry;
+
+                // ================= HEADER INSERT =================
+                var headerQuery = $@"
+INSERT INTO ""@CCO_TRNS_PRDEXE_HD""
+(
+    ""DocEntry"", ""DocNum"", ""Series"", ""Object"",
+    ""Status"", ""CreateDate"", ""CreateTime"",
+    ""U_DocEntry"", ""U_Manual"", ""U_ExecRmks"", ""U_Source"",
+    ""U_WhsCode"", ""U_FGWhs"", ""U_SchId"", ""U_SchNo"",
+    ""U_SchDt"", ""U_ProdType"", ""U_UnitCode"", ""U_ProdDt"",
+    ""U_SchSts"", ""U_ProcCode"", ""U_OpID"", ""U_Operator"",
+    ""U_StartHrs"", ""U_EndHrs""
+)
+VALUES
+(
+    {payload.DocEntry},
+    '{payload.DocNum}',
+    '{payload.Series}',
+    '{payload.Object}',
+    '{payload.Status}',
+    '{payload.CreateDate:yyyy-MM-dd}',
+    '{payload.CreateTime}',
+    '{payload.U_DocEntry ?? ""}',
+    '{payload.U_Manual ?? ""}',
+    '{payload.U_ExecRmks ?? ""}',
+    '{payload.U_Source ?? ""}',
+    '{payload.U_WhsCode ?? ""}',
+    '{payload.U_FGWhs ?? ""}',
+    '{payload.U_SchId ?? ""}',
+    '{payload.U_SchNo ?? ""}',
+    '{payload.U_SchDt:yyyy-MM-dd}',
+    '{payload.U_ProdType ?? ""}',
+    '{payload.U_UnitCode ?? ""}',
+    '{payload.U_ProdDt:yyyy-MM-dd}',
+    '{payload.U_SchSts ?? ""}',
+    '{payload.U_ProcCode ?? ""}',
+    '{payload.U_OpID ?? ""}',
+    '{payload.U_Operator ?? ""}',
+    '{payload.U_StartHrs}',
+    '{payload.U_EndHrs}'
+)";
+
+                await conn.ExecuteAsync(headerQuery, transaction: trans);
+
+                // ================= C1 INSERT =================
+                if (payload.CCO_TRNS_PRDEXE_C1 != null)
+                {
+                    for (int i = 0; i < payload.CCO_TRNS_PRDEXE_C1.Count; i++)
+                    {
+                        var item = payload.CCO_TRNS_PRDEXE_C1[i];
+
+                        item.DocEntry = payload.DocEntry;
+                        item.LineId = i + 1;
+
+                        var c1Query = $@"
+INSERT INTO ""@CCO_TRNS_PRDEXE_C1""
+(
+    ""DocEntry"", ""LineId"", ""U_WONo"", ""U_WOId"",
+    ""U_ItemCode"", ""U_IPLn"", ""U_IPItem"", ""U_IPBatch"",
+    ""U_SchQty"", ""U_UOM"", ""U_WhseCode"",
+    ""U_Thick"", ""U_Width"", ""U_Length"",
+    ""U_Form"", ""U_Type"", ""U_Grade""
+)
+VALUES
+(
+    {item.DocEntry},
+    {item.LineId},
+    '{item.U_WONo ?? ""}',
+    '{item.U_WOId ?? ""}',
+    '{item.U_ItemCode ?? ""}',
+    '{item.U_IPLn ?? ""}',
+    '{item.U_IPItem ?? ""}',
+    '{item.U_IPBatch ?? ""}',
+    '{item.U_SchQty}',
+    '{item.U_UOM ?? ""}',
+    '{item.U_WhseCode ?? ""}',
+    '{item.U_Thick}',
+    '{item.U_Width}',
+    '{item.U_Length}',
+    '{item.U_Form ?? ""}',
+    '{item.U_Type ?? ""}',
+    '{item.U_Grade ?? ""}'
+)";
+
+                        await conn.ExecuteAsync(c1Query, transaction: trans);
+                    }
+                }
+
+                // ================= C2 INSERT =================
+                if (payload.CCO_TRNS_PRDEXE_C2 != null)
+                {
+                    for (int i = 0; i < payload.CCO_TRNS_PRDEXE_C2.Count; i++)
+                    {
+                        var item = payload.CCO_TRNS_PRDEXE_C2[i];
+
+                        item.DocEntry = payload.DocEntry;
+                        item.LineId = i + 1;
+
+                        var c2Query = $@"
+INSERT INTO ""@CCO_TRNS_PRDEXE_C2""
+(
+    ""DocEntry"", ""LineId"", ""U_WONo"", ""U_WOId"",
+    ""U_OPItem"", ""U_CustCode"", ""U_CustName"",
+    ""U_SODN"", ""U_SODE"", ""U_SOLn"",
+    ""U_SOSchQty"", ""U_Qty"", ""U_UOM"",
+    ""U_Thick"", ""U_Width"", ""U_Length1"",
+    ""U_Form"", ""U_Type"", ""U_Grade""
+)
+VALUES
+(
+    {item.DocEntry},
+    {item.LineId},
+    '{item.U_WONo ?? ""}',
+    '{item.U_WOId ?? ""}',
+    '{item.U_OPItem ?? ""}',
+    '{item.U_CustCode ?? ""}',
+    '{item.U_CustName ?? ""}',
+    '{item.U_SODN ?? ""}',
+    '{item.U_SODE}',
+    '{item.U_SOLn ?? ""}',
+    '{item.U_SOSchQty}',
+    '{item.U_Qty}',
+    '{item.U_UOM ?? ""}',
+    '{item.U_Thick}',
+    '{item.U_Width}',
+    '{item.U_Length1}',
+    '{item.U_Form ?? ""}',
+    '{item.U_Type ?? ""}',
+    '{item.U_Grade ?? ""}'
+)";
+
+                        await conn.ExecuteAsync(c2Query, transaction: trans);
+                    }
+                }
+
+                // ================= COMMIT =================
+                trans.Commit();
+
+                return Ok(new
+                {
+                    message = "Production Execution Saved Successfully",
+                    docEntry = payload.DocEntry
+                });
+            }
+            catch (Exception ex)
+            {
+                trans.Rollback();
+
+                return StatusCode(500, new
+                {
+                    message = "Error inserting production execution",
+                    error = ex.Message
+                });
+            }
+        }
+
+        [HttpPost("AddProductionExecutionC3")]
+        public async Task<IActionResult> AddProductionExecutionC3([FromBody] ProductionExecutionC3Post payload)
+        {
+            using var conn = _databaseContext.CreateConnection();
+            conn.Open();
+
+            using var trans = conn.BeginTransaction();
+
+            try
+            {
+                if (payload.C3List != null)
+                {
+                    for (int i = 0; i < payload.C3List.Count; i++)
+                    {
+                        var item = payload.C3List[i];
+
+                        item.DocEntry = payload.DocEntry;
+                        item.LineId = i + 1;
+
+                        // ================= CALL SP =================
+                        var batchNum = await conn.ExecuteScalarAsync<string>(
+                            $@"CALL ""BatchGeneration_PRDEXE""('{payload.PostDate}', '{payload.MachineCode}')",
+                            
+                            transaction: trans
+                        );
+
+                        // assign batch to item
+                        item.U_OPBatch = batchNum;
+
+                        // ================= INSERT =================
+                        var query = $@"
+INSERT INTO ""@CCO_TRNS_PRDEXE_C3""
+(
+    ""DocEntry"", ""LineId"",
+    ""U_ItemCode"", ""U_IPItem"", ""U_OPItem"",
+    ""U_IPBatch"", ""U_OPBatch"",
+    ""U_QCSts"", ""U_ExeSts"",
+    ""U_MachCode"",
+    ""U_StartDate"", ""U_EndDate"",
+    ""U_Remark"",
+    ""U_Operator""
+)
+VALUES
+(
+    {item.DocEntry},
+    {item.LineId},
+    '{item.U_ItemCode ?? ""}',
+    '{item.U_IPItem ?? ""}',
+    '{item.U_OPItem ?? ""}',
+    '{item.U_IPBatch ?? ""}',
+    '{item.U_OPBatch ?? ""}',   -- 🔥 generated batch
+    '{item.U_QCSts ?? ""}',
+    '{item.U_ExeSts ?? ""}',
+    '{payload.MachineCode ?? ""}',
+    '{payload.PostDate:yyyy-MM-dd}',
+    '{payload.PostDate:yyyy-MM-dd}',
+    '{item.U_Remark ?? ""}',
+    '{item.U_Operator ?? ""}'
+)";
+
+                        await conn.ExecuteAsync(query, transaction: trans);
+                    }
+                }
+
+                trans.Commit();
+
+                return Ok(new
+                {
+                    message = "C3 Data Inserted Successfully with Batch",
+                    docEntry = payload.DocEntry
+                });
+            }
+            catch (Exception ex)
+            {
+                trans.Rollback();
+
+                return StatusCode(500, new
+                {
+                    message = "Error inserting C3 data",
+                    error = ex.Message
+                });
+            }
+        }
     }
 }
