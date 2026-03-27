@@ -68,6 +68,7 @@
         public class ScheduleSizeDto
         {
             public int? U_IPLn { get; set; }
+            public int? DocNum { get; set; }
             public string U_Roll { get; set; }
             public string U_IPItem { get; set; }
             public string U_IPBatch { get; set; }
