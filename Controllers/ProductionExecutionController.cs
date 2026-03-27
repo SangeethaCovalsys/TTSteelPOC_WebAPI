@@ -323,6 +323,7 @@ AND C.""DocEntry"" not in (
                 var query = $@"
 SELECT DISTINCT 
     wh.""U_IPLn"",
+    wh.""DocNum"",
     COALESCE(wh.""U_Roll"", 'N') AS ""U_Roll"",
     sc1.""U_ItemCode"" AS ""U_IPItem"",
     wc1.""U_IPBatch"",
@@ -370,6 +371,7 @@ SELECT DISTINCT
     wc1.""U_WhseCode"",
     wc1.""U_VPDE"",
     wc1.""U_VPPrcLn"",
+
     COALESCE(A.""U_SeqCode"", '0') AS ""U_SeqCode"",
     CAST(wc1.""U_Rmks"" AS NVARCHAR) AS ""U_Rmks""
 FROM ""@CCO_TRNS_WRKORD_HD"" wh
@@ -416,7 +418,7 @@ ORDER BY wc1.""U_Width""";
 
             try
             {
-                // ================= DocEntry =================
+                // ================= 1. DocEntry =================
                 var docEntry = await conn.ExecuteScalarAsync<int>(
                     @"SELECT IFNULL(MAX(""DocEntry""),0)+1 FROM ""@CCO_TRNS_PRDEXE_HD""",
                     transaction: trans
@@ -424,7 +426,19 @@ ORDER BY wc1.""U_Width""";
 
                 payload.DocEntry = docEntry;
 
-                // ================= HEADER INSERT =================
+                // ================= 2. Series & DocNum =================
+                var seriesData = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                    @"SELECT T0.""Series"", T0.""NextNumber"" 
+              FROM NNM1 T0 
+              INNER JOIN ONNM T1 ON T0.""Series"" = T1.""DfltSeries""  
+              WHERE T0.""ObjectCode"" = 'PRDEXE'",
+                    transaction: trans
+                );
+
+                payload.Series = seriesData?.Series;
+                payload.DocNum = seriesData?.NextNumber;
+
+                // ================= 3. HEADER INSERT =================
                 var headerQuery = $@"
 INSERT INTO ""@CCO_TRNS_PRDEXE_HD""
 (
@@ -434,40 +448,56 @@ INSERT INTO ""@CCO_TRNS_PRDEXE_HD""
     ""U_WhsCode"", ""U_FGWhs"", ""U_SchId"", ""U_SchNo"",
     ""U_SchDt"", ""U_ProdType"", ""U_UnitCode"", ""U_ProdDt"",
     ""U_SchSts"", ""U_ProcCode"", ""U_OpID"", ""U_Operator"",
-    ""U_StartHrs"", ""U_EndHrs""
+    ""U_StartHrs"", ""U_EndHrs"", ""U_StartDate"", ""U_EndDate"",""U_ShiftA""
 )
 VALUES
 (
     {payload.DocEntry},
-    '{payload.DocNum}',
-    '{payload.Series}',
+    {payload.DocNum},
+    {payload.Series},
     '{payload.Object}',
     '{payload.Status}',
     '{payload.CreateDate:yyyy-MM-dd}',
-    '{payload.CreateTime}',
+    {payload.CreateTime},
+
     '{payload.U_DocEntry ?? ""}',
     '{payload.U_Manual ?? ""}',
     '{payload.U_ExecRmks ?? ""}',
     '{payload.U_Source ?? ""}',
+
     '{payload.U_WhsCode ?? ""}',
     '{payload.U_FGWhs ?? ""}',
     '{payload.U_SchId ?? ""}',
     '{payload.U_SchNo ?? ""}',
-    '{payload.U_SchDt:yyyy-MM-dd}',
+
+    NULL,
+
     '{payload.U_ProdType ?? ""}',
     '{payload.U_UnitCode ?? ""}',
-    '{payload.U_ProdDt:yyyy-MM-dd}',
+
+    {(payload.U_ProdDt == null ? "NULL" : $"'{payload.U_ProdDt:yyyy-MM-dd}'")},
+
     '{payload.U_SchSts ?? ""}',
     '{payload.U_ProcCode ?? ""}',
     '{payload.U_OpID ?? ""}',
     '{payload.U_Operator ?? ""}',
-    '{payload.U_StartHrs}',
-    '{payload.U_EndHrs}'
+
+    {(payload.U_StartHrs == null ? "NULL" : payload.U_StartHrs.ToString())},
+    {(payload.U_EndHrs == null ? "NULL" : payload.U_EndHrs.ToString())},
+
+    {(payload.U_StartDate == null
+        ? "NULL"
+        : $"'{payload.U_StartDate:yyyy-MM-dd HH:mm:ss}'")},
+
+    {(payload.U_EndDate == null
+        ? "NULL"
+        : $"'{payload.U_EndDate:yyyy-MM-dd HH:mm:ss}'")},
+'{payload.U_ShiftA}'
 )";
 
                 await conn.ExecuteAsync(headerQuery, transaction: trans);
 
-                // ================= C1 INSERT =================
+                // ================= 4. C1 INSERT =================
                 if (payload.CCO_TRNS_PRDEXE_C1 != null)
                 {
                     for (int i = 0; i < payload.CCO_TRNS_PRDEXE_C1.Count; i++)
@@ -480,38 +510,92 @@ VALUES
                         var c1Query = $@"
 INSERT INTO ""@CCO_TRNS_PRDEXE_C1""
 (
-    ""DocEntry"", ""LineId"", ""U_WONo"", ""U_WOId"",
-    ""U_ItemCode"", ""U_IPLn"", ""U_IPItem"", ""U_IPBatch"",
-    ""U_SchQty"", ""U_UOM"", ""U_WhseCode"",
+    ""DocEntry"", ""LineId"", ""Object"",
+    ""U_Select"",
+    ""U_RcptDate"",
+    ""U_CoilNo"",
+    ""U_ActlQty"",
+    ""U_SchQty"",
+    ""U_JBName"",
+    ""U_WONo"", ""U_WOId"", ""U_ItemCode"",
+    ""U_IPLn"", ""U_IPItem"", ""U_IPBatch"",
+    ""U_BarCdSts"", ""U_IPLevel"",
+    ""U_SchPcs"", ""U_Pkts"", ""U_PcPerPkt"",
+    ""U_UOM"",
+    ""U_TrimWid"", ""U_CLen"", ""U_WhseCode"",
+    ""U_MillCode"", ""U_MillName"", ""U_JBCode"",
     ""U_Thick"", ""U_Width"", ""U_Length"",
-    ""U_Form"", ""U_Type"", ""U_Grade""
+    ""U_Form"", ""U_Type"", ""U_Grade"",
+    ""U_MaxYield"",
+    ""U_Surface"", ""U_Coating"", ""U_Edge"", ""U_Oiling"",
+    ""U_BarScn"",
+    ""U_Status""
 )
 VALUES
 (
     {item.DocEntry},
     {item.LineId},
+    '{item.Object}',
+
+    '{item.U_Select ?? "Y"}',
+    {(item.U_RcptDate == null ? "NULL" : $"'{item.U_RcptDate:yyyy-MM-dd}'")},
+    '{item.U_CoilNo ?? ""}',
+
+    {(item.U_ActlQty ?? 0)},
+    {(item.U_SchQty ?? 0)},
+
+    '{item.U_JBName ?? ""}',
+
     '{item.U_WONo ?? ""}',
     '{item.U_WOId ?? ""}',
     '{item.U_ItemCode ?? ""}',
+
     '{item.U_IPLn ?? ""}',
     '{item.U_IPItem ?? ""}',
     '{item.U_IPBatch ?? ""}',
-    '{item.U_SchQty}',
+
+    '{item.U_BarCdSts ?? ""}',
+    '{item.U_IPLevel ?? ""}',
+
+    {(item.U_SchPcs ?? 0)},
+    {(item.U_Pkts ?? 0)},
+    {(item.U_PcPerPkt ?? 0)},
+
     '{item.U_UOM ?? ""}',
+
+    {(item.U_TrimWid ?? 0)},
+    {(item.U_CLen ?? 0)},
     '{item.U_WhseCode ?? ""}',
-    '{item.U_Thick}',
-    '{item.U_Width}',
-    '{item.U_Length}',
+
+    '{item.U_MillCode ?? ""}',
+    '{item.U_MillName ?? ""}',
+    '{item.U_JBCode ?? ""}',
+
+    {(item.U_Thick ?? 0)},
+    {(item.U_Width ?? 0)},
+    {(item.U_Length ?? 0)},
+
     '{item.U_Form ?? ""}',
     '{item.U_Type ?? ""}',
-    '{item.U_Grade ?? ""}'
+    '{item.U_Grade ?? ""}',
+
+    '{item.U_MaxYield ?? ""}',
+
+    '{item.U_Surface ?? ""}',
+    '{item.U_Coating ?? ""}',
+    '{item.U_Edge ?? ""}',
+    '{item.U_Oiling ?? ""}',
+
+    '{item.U_BarScn ?? "S"}',
+
+    '{item.U_Status ?? ""}'
 )";
 
                         await conn.ExecuteAsync(c1Query, transaction: trans);
                     }
                 }
 
-                // ================= C2 INSERT =================
+                // ================= 5. C2 INSERT =================
                 if (payload.CCO_TRNS_PRDEXE_C2 != null)
                 {
                     for (int i = 0; i < payload.CCO_TRNS_PRDEXE_C2.Count; i++)
@@ -524,47 +608,135 @@ VALUES
                         var c2Query = $@"
 INSERT INTO ""@CCO_TRNS_PRDEXE_C2""
 (
-    ""DocEntry"", ""LineId"", ""U_WONo"", ""U_WOId"",
-    ""U_OPItem"", ""U_CustCode"", ""U_CustName"",
+    ""DocEntry"", ""LineId"", ""Object"",
+    ""U_Select"",
+    ""U_WONo"", ""U_WOId"", ""U_Roll"",
+    ""U_IPLn"", ""U_IPItem"", ""U_IPBatch"",
+    ""U_MTS"", ""U_WIP"",
+    ""U_OPType"", ""U_OPItem"",
+    ""U_CustCode"", ""U_CustName"",
     ""U_SODN"", ""U_SODE"", ""U_SOLn"",
     ""U_SOSchQty"", ""U_Qty"", ""U_UOM"",
-    ""U_Thick"", ""U_Width"", ""U_Length1"",
-    ""U_Form"", ""U_Type"", ""U_Grade""
+    ""U_Thick"", ""U_Width"", ""U_Length1"", ""U_Length2"",
+    ""U_Form"", ""U_Type"", ""U_Grade"",
+    ""U_Pitch"", ""U_UnitWt"",
+    ""U_Pcs"", ""U_SchPcs"", ""U_Pkts"", ""U_PcPerPkt"",
+    ""U_SchQty"", ""U_ActPkt"",
+    ""U_PlanOP"", ""U_OpenQty"", ""U_Produced"",
+    ""U_PassNum"", ""U_PassLen"", ""U_PassUOM"",
+    ""U_SplInstn"",
+    ""U_MinPkWt"", ""U_MaxPkWt"",
+    ""U_Surface"", ""U_Coating"", ""U_Oiling"", ""U_Edge"",
+    ""U_VPDE"", ""U_VPPrcLn"", ""U_VPRmks"",
+    ""U_Edgebur"", ""U_Pinhole"", ""U_surfscrh"",
+    ""U_Status"", ""U_Remark"", ""U_MachCode""
 )
 VALUES
 (
     {item.DocEntry},
     {item.LineId},
+    '{item.Object}',
+
+    '{item.U_Select ?? "Y"}',
+
     '{item.U_WONo ?? ""}',
     '{item.U_WOId ?? ""}',
+    '{item.U_Roll ?? ""}',
+
+    '{item.U_IPLn ?? ""}',
+    '{item.U_IPItem ?? ""}',
+    '{item.U_IPBatch ?? ""}',
+
+    '{item.U_MTS ?? ""}',
+    '{item.U_WIP ?? ""}',
+
+    '{item.U_OPType ?? ""}',
     '{item.U_OPItem ?? ""}',
+
     '{item.U_CustCode ?? ""}',
     '{item.U_CustName ?? ""}',
+
     '{item.U_SODN ?? ""}',
-    '{item.U_SODE}',
+    {(item.U_SODE ?? 0)},
     '{item.U_SOLn ?? ""}',
-    '{item.U_SOSchQty}',
-    '{item.U_Qty}',
+
+    {(item.U_SOSchQty ?? 0)},
+    {(item.U_Qty ?? 0)},
     '{item.U_UOM ?? ""}',
-    '{item.U_Thick}',
-    '{item.U_Width}',
-    '{item.U_Length1}',
+
+    {(item.U_Thick ?? 0)},
+    {(item.U_Width ?? 0)},
+    {(item.U_Length1 ?? 0)},
+    {(item.U_Length2 ?? 0)},
+
     '{item.U_Form ?? ""}',
     '{item.U_Type ?? ""}',
-    '{item.U_Grade ?? ""}'
+    '{item.U_Grade ?? ""}',
+
+    {(item.U_Pitch ?? 0)},
+    {(item.U_UnitWt ?? 0)},
+
+    {(item.U_Pcs ?? 0)},
+    {(item.U_SchPcs ?? 0)},
+    {(item.U_Pkts ?? 0)},
+    {(item.U_PcPerPkt ?? 0)},
+
+    {(item.U_SchQty ?? 0)},
+    {(item.U_ActPkt ?? 0)},
+
+    {(item.U_PlanOP ?? 0)},
+    {(item.U_OpenQty ?? 0)},
+    {(item.U_Produced ?? 0)},
+
+    '{item.U_PassNum ?? ""}',
+    {(item.U_PassLen ?? 0)},
+    '{item.U_PassUOM ?? ""}',
+
+    '{item.U_SplInstn ?? ""}',
+
+    {(item.U_MinPkWt ?? 0)},
+    {(item.U_MaxPkWt ?? 0)},
+
+    '{item.U_Surface ?? ""}',
+    '{item.U_Coating ?? ""}',
+    '{item.U_Oiling ?? ""}',
+    '{item.U_Edge ?? ""}',
+
+    '{item.U_VPDE ?? ""}',
+    '{item.U_VPPrcLn ?? ""}',
+    '{item.U_VPRmks ?? ""}',
+
+    '{item.U_Edgebur ?? "N"}',
+    '{item.U_Pinhole ?? "N"}',
+    '{item.U_surfscrh ?? "N"}',
+
+    '{item.U_Status ?? ""}',
+    '{item.U_Remark ?? ""}',
+    '{item.U_MachCode ?? ""}'
 )";
 
                         await conn.ExecuteAsync(c2Query, transaction: trans);
                     }
                 }
 
-                // ================= COMMIT =================
+                // ================= 6. UPDATE NextNumber =================
+              //  await conn.ExecuteAsync(
+              //      @"UPDATE NNM1 
+              //SET ""NextNumber"" = ""NextNumber"" + 1 
+              //WHERE ""ObjectCode"" = 'PRDEXE' 
+              //AND ""Series"" = @Series",
+              //      new { Series = payload.Series },
+              //      transaction: trans
+              //  );
+
+                // ================= 7. COMMIT =================
                 trans.Commit();
 
                 return Ok(new
                 {
                     message = "Production Execution Saved Successfully",
-                    docEntry = payload.DocEntry
+                    docEntry = payload.DocEntry,
+                    docNum = payload.DocNum
                 });
             }
             catch (Exception ex)
@@ -612,29 +784,187 @@ VALUES
                         var query = $@"
 INSERT INTO ""@CCO_TRNS_PRDEXE_C3""
 (
-    ""DocEntry"", ""LineId"",
+    ""DocEntry"", ""LineId"", ""Object"",
+
+    ""U_Select"", ""U_selctlbl"", ""U_PWt"",
     ""U_ItemCode"", ""U_IPItem"", ""U_OPItem"",
     ""U_IPBatch"", ""U_OPBatch"",
+
+    ""U_PartNo"", ""U_Seq"", ""U_OpType"", ""U_VPUser"",
+    ""U_VPPCust"", ""U_OPPartNoRef"",
+
+    ""U_SOPcs"", ""U_OPSchPcs"", ""U_Pkts"", ""U_PcPerPkt"",
+    ""U_UnitWt"", ""U_PckgWt"", ""U_GrossWt"", ""U_NetWt"",
+    ""U_TheoWt"",
+
+    ""U_OBThick1"", ""U_OBThick2"",
+    ""U_OBWidth1"", ""U_OBWidth2"",
+    ""U_OBLen1"", ""U_OBLen2"",
+
+    ""U_IPLevel"", ""U_IPSchPcs"", ""U_IPUOM"",
+    ""U_CustCode"", ""U_CustName"",
+
+    ""U_MTS"", ""U_OPLn"", ""U_OPLevel"",
+    ""U_OPForm"", ""U_OPGrade"",
+    ""U_OPThick"", ""U_OPWidth"",
+    ""U_Type"", ""U_EqSpec"",
+
+    ""U_Length1"", ""U_Length2"",
+    ""U_Pitch"",
+
+    ""U_PurPrc"", ""U_PrmVal"", ""U_ScrPrc"", ""U_ScrVal"", ""U_UnitPrc"",
+
+    ""U_UOM"", ""U_Whse"",
+    ""U_FGRef"", ""U_FGWhs"",
+    ""U_WIP"",
+
+    ""U_PackID"", ""U_GrpNo"",
+    ""U_SODN"", ""U_SOLn"", ""U_SODE"",
+    ""U_QDCNo"", ""U_QDCDE"", ""U_QDCObj"",
+
+    ""U_GIDE"", ""U_GRDE"", ""U_GRRevNo"", ""U_GIRevNo"",
+
     ""U_QCSts"", ""U_ExeSts"",
-    ""U_MachCode"",
+    ""U_MinPkWt"", ""U_MaxPkWt"",
+
+    ""U_Surface"", ""U_Coating"", ""U_Oiling"", ""U_Edge"",
+
+    ""U_VPDE"", ""U_VPPrcLn"",
+    ""U_MachCode"", ""U_Status"",
+
+    ""U_Edgebur"", ""U_OilStain"", ""U_Coilset"",
+    ""U_Telescop"", ""U_Scalmark"", ""U_surfscrh"",
+    ""U_RustOxd"", ""U_crosbow"", ""U_Pinhole"", ""U_dentgoug"",
+
     ""U_StartDate"", ""U_EndDate"",
-    ""U_Remark"",
-    ""U_Operator""
+    ""U_Remark"", ""U_Operator""
 )
 VALUES
 (
     {item.DocEntry},
     {item.LineId},
+    'PRDEXE',
+
+    '{item.U_Select ?? "Y"}',
+    NULL,
+    {(item.U_PWt ?? 0)},
+
     '{item.U_ItemCode ?? ""}',
     '{item.U_IPItem ?? ""}',
     '{item.U_OPItem ?? ""}',
+
     '{item.U_IPBatch ?? ""}',
-    '{item.U_OPBatch ?? ""}',   -- 🔥 generated batch
+    '{item.U_OPBatch ?? ""}',
+
+    {(item.U_PartNo ?? "")},
+    {(item.U_Seq ?? "")},
+    '{item.U_OPType ?? ""}',
+    '{item.U_VPUser ?? ""}',
+
+    '{item.U_VPPCust ?? ""}',
+    '{item.U_OPPartNoRef ?? ""}',
+
+    {(item.U_SOPcs ?? 0)},
+    {(item.U_OPSchPcs ?? 0)},
+    {(item.U_Pkts ?? 0)},
+    {(item.U_PcPerPkt ?? 0)},
+
+    {(item.U_UnitWt ?? 0)},
+    {(item.U_PckgWt ?? 0)},
+    {(item.U_GrossWt ?? 0)},
+    {(item.U_NetWt ?? 0)},
+    {(item.U_TheoWt ?? 0)},
+
+    {(item.U_OBThick1 ?? 0)},
+    {(item.U_OBThick2 ?? 0)},
+    {(item.U_OBWidth1 ?? 0)},
+    {(item.U_OBWidth2 ?? 0)},
+    {(item.U_OBLen1 ?? 0)},
+    {(item.U_OBLen2 ?? 0)},
+
+    '{item.U_IPLevel ?? ""}',
+    {(item.U_IPSchPcs ?? 0)},
+    '{item.U_IPUOM ?? ""}',
+
+    '{item.U_CustCode ?? ""}',
+    '{item.U_CustName ?? ""}',
+
+    '{item.U_MTS ?? ""}',
+    {(item.U_OPLn ?? "")},
+    '{item.U_OPLevel ?? ""}',
+
+    '{item.U_OPForm ?? ""}',
+    '{item.U_OPGrade ?? ""}',
+
+    {(item.U_OPThick ?? 0)},
+    {(item.U_OPWidth ?? 0)},
+
+    '{item.U_Type ?? ""}',
+    '{item.U_EqSpec ?? ""}',
+
+    {(item.U_Length1 ?? 0)},
+    {(item.U_Length2 ?? 0)},
+
+    {(item.U_Pitch ?? 0)},
+
+    {(item.U_PurPrc ?? 0)},
+    {(item.U_PrmVal ?? 0)},
+    {(item.U_ScrPrc ?? 0)},
+    {(item.U_ScrVal ?? 0)},
+    {(item.U_UnitPrc ?? 0)},
+
+    '{item.U_UOM ?? ""}',
+    '{item.U_Whse ?? ""}',
+
+    '{item.U_FGRef ?? ""}',
+    '{item.U_FGWhs ?? ""}',
+
+    '{item.U_WIP ?? ""}',
+
+    NULL,
+    NULL,
+
+    '{item.U_SODN ?? ""}',
+    '{item.U_SOLn ?? ""}',
+    {(item.U_SODE ?? 0)},
+
+    '{item.U_QDCNo ?? ""}',
+    '{item.U_QDCDE ?? ""}',
+    '{item.U_QDCObj ?? ""}',
+
+    NULL, NULL, NULL, NULL,
+
     '{item.U_QCSts ?? ""}',
     '{item.U_ExeSts ?? ""}',
+
+    {(item.U_MinPkWt ?? 0)},
+    {(item.U_MaxPkWt ?? 0)},
+
+    '{item.U_Surface ?? ""}',
+    '{item.U_Coating ?? ""}',
+    '{item.U_Oiling ?? ""}',
+    '{item.U_Edge ?? ""}',
+
+    '{item.U_VPDE ?? ""}',
+    '{item.U_VPPrcLn ?? ""}',
+
     '{payload.MachineCode ?? ""}',
+    '{item.U_Status ?? "Open"}',
+
+    '{item.U_Edgebur ?? "N"}',
+    '{item.U_OilStain ?? "N"}',
+    '{item.U_Coilset ?? "N"}',
+    '{item.U_Telescop ?? "N"}',
+    '{item.U_Scalmark ?? "N"}',
+    '{item.U_surfscrh ?? "N"}',
+    '{item.U_RustOxd ?? "N"}',
+    '{item.U_crosbow ?? "N"}',
+    '{item.U_Pinhole ?? "N"}',
+    '{item.U_dentgoug ?? "N"}',
+
     '{payload.PostDate:yyyy-MM-dd}',
     '{payload.PostDate:yyyy-MM-dd}',
+
     '{item.U_Remark ?? ""}',
     '{item.U_Operator ?? ""}'
 )";
@@ -661,6 +991,37 @@ VALUES
                     error = ex.Message
                 });
             }
+        }
+
+        [HttpGet("GetProductionExecution")]
+        public async Task<IActionResult> GetProductionExecution([FromQuery]int docEntry)
+        {
+            using var conn = _databaseContext.CreateConnection();
+            conn.Open();
+
+            // 1. Retrieve header
+            string headerSql = $@"SELECT * FROM ""@CCO_TRNS_PRDEXE_HD"" WHERE ""DocEntry"" = {docEntry}";
+            var header = await conn.QueryFirstOrDefaultAsync<CCO_TRNS_PRDEXE_HD>(
+                headerSql);
+
+            if (header == null)
+                return NotFound($"No production execution found with DocEntry = {docEntry}");
+
+            // 2. Retrieve C1 lines (input materials)
+             string c1Sql = $@"SELECT * FROM ""@CCO_TRNS_PRDEXE_C1""  WHERE ""DocEntry"" ={docEntry}  ORDER BY ""LineId""";
+            var c1Lines = await conn.QueryAsync<CCO_TRNS_PRDEXE_C1>(
+                c1Sql);
+
+            // 3. Retrieve C2 lines (output products / coils)
+             string c2Sql = $@" SELECT * FROM ""@CCO_TRNS_PRDEXE_C2""  WHERE ""DocEntry"" = {docEntry}  ORDER BY ""LineId""";
+            var c2Lines = await conn.QueryAsync<CCO_TRNS_PRDEXE_C2>(
+                c2Sql);
+
+            // 4. Assign child collections
+            header.CCO_TRNS_PRDEXE_C1 = c1Lines.ToList();
+            header.CCO_TRNS_PRDEXE_C2 = c2Lines.ToList();
+
+            return Ok(header);
         }
     }
 }
