@@ -434,9 +434,16 @@ ORDER BY wc1.""U_Width""";
               WHERE T0.""ObjectCode"" = 'PRDEXE'",
                     transaction: trans
                 );
-
+                var FgWhs = await conn.QueryFirstOrDefaultAsync<dynamic>(
+                    $@"SELECT  T0.""U_FGWhs"", T0.""U_WhsCode"", T0.""U_Planner"" FROM ""@CCO_TRNS_PRCSCH_HD""  T0 WHERE T0.""U_SchNo"" = '{payload.U_SchNo}'",
+                    transaction: trans
+                    );
+                
                 payload.Series = seriesData?.Series;
                 payload.DocNum = seriesData?.NextNumber;
+                payload.U_FGWhs = FgWhs.U_FGWhs;
+                payload.U_WhsCode = FgWhs.U_WhsCode;
+                payload.U_Operator = FgWhs.U_Planner;
 
                 // ================= 3. HEADER INSERT =================
                 var headerQuery = $@"
@@ -771,12 +778,12 @@ VALUES
                         item.LineId = i + 1;
 
                         // ================= CALL SP =================
+                        var formattedDate = payload.PostDate.ToString("yyyyMMdd");
+
                         var batchNum = await conn.ExecuteScalarAsync<string>(
-                            $@"CALL ""BatchGeneration_PRDEXE""('{payload.PostDate}', '{payload.MachineCode}')",
-                            
+                            $@"CALL ""BatchGeneration_PRDEXE""('{formattedDate}', '{payload.MachineCode}')",
                             transaction: trans
                         );
-
                         // assign batch to item
                         item.U_OPBatch = batchNum;
 
@@ -785,57 +792,57 @@ VALUES
 INSERT INTO ""@CCO_TRNS_PRDEXE_C3""
 (
     ""DocEntry"", ""LineId"", ""Object"",
-
+ 
     ""U_Select"", ""U_selctlbl"", ""U_PWt"",
     ""U_ItemCode"", ""U_IPItem"", ""U_OPItem"",
     ""U_IPBatch"", ""U_OPBatch"",
-
-    ""U_PartNo"", ""U_Seq"", ""U_OpType"", ""U_VPUser"",
+ 
+    ""U_PartNo"", ""U_Seq"", ""U_OPType"", ""U_VPUser"",
     ""U_VPPCust"", ""U_OPPartNoRef"",
-
+ 
     ""U_SOPcs"", ""U_OPSchPcs"", ""U_Pkts"", ""U_PcPerPkt"",
     ""U_UnitWt"", ""U_PckgWt"", ""U_GrossWt"", ""U_NetWt"",
     ""U_TheoWt"",
-
+ 
     ""U_OBThick1"", ""U_OBThick2"",
     ""U_OBWidth1"", ""U_OBWidth2"",
     ""U_OBLen1"", ""U_OBLen2"",
-
+ 
     ""U_IPLevel"", ""U_IPSchPcs"", ""U_IPUOM"",
     ""U_CustCode"", ""U_CustName"",
-
+ 
     ""U_MTS"", ""U_OPLn"", ""U_OPLevel"",
     ""U_OPForm"", ""U_OPGrade"",
     ""U_OPThick"", ""U_OPWidth"",
     ""U_Type"", ""U_EqSpec"",
-
+ 
     ""U_Length1"", ""U_Length2"",
     ""U_Pitch"",
-
+ 
     ""U_PurPrc"", ""U_PrmVal"", ""U_ScrPrc"", ""U_ScrVal"", ""U_UnitPrc"",
-
+ 
     ""U_UOM"", ""U_Whse"",
     ""U_FGRef"", ""U_FGWhs"",
     ""U_WIP"",
-
+ 
     ""U_PackID"", ""U_GrpNo"",
     ""U_SODN"", ""U_SOLn"", ""U_SODE"",
     ""U_QDCNo"", ""U_QDCDE"", ""U_QDCObj"",
-
+ 
     ""U_GIDE"", ""U_GRDE"", ""U_GRRevNo"", ""U_GIRevNo"",
-
+ 
     ""U_QCSts"", ""U_ExeSts"",
     ""U_MinPkWt"", ""U_MaxPkWt"",
-
+ 
     ""U_Surface"", ""U_Coating"", ""U_Oiling"", ""U_Edge"",
-
+ 
     ""U_VPDE"", ""U_VPPrcLn"",
     ""U_MachCode"", ""U_Status"",
-
+ 
     ""U_Edgebur"", ""U_OilStain"", ""U_Coilset"",
     ""U_Telescop"", ""U_Scalmark"", ""U_surfscrh"",
     ""U_RustOxd"", ""U_crosbow"", ""U_Pinhole"", ""U_dentgoug"",
-
+ 
     ""U_StartDate"", ""U_EndDate"",
     ""U_Remark"", ""U_Operator""
 )
@@ -844,113 +851,113 @@ VALUES
     {item.DocEntry},
     {item.LineId},
     'PRDEXE',
-
+ 
     '{item.U_Select ?? "Y"}',
     NULL,
     {(item.U_PWt ?? 0)},
-
+ 
     '{item.U_ItemCode ?? ""}',
     '{item.U_IPItem ?? ""}',
     '{item.U_OPItem ?? ""}',
-
+ 
     '{item.U_IPBatch ?? ""}',
     '{item.U_OPBatch ?? ""}',
-
+ 
     {(item.U_PartNo ?? "")},
     {(item.U_Seq ?? "")},
     '{item.U_OPType ?? ""}',
     '{item.U_VPUser ?? ""}',
-
+ 
     '{item.U_VPPCust ?? ""}',
     '{item.U_OPPartNoRef ?? ""}',
-
+ 
     {(item.U_SOPcs ?? 0)},
     {(item.U_OPSchPcs ?? 0)},
     {(item.U_Pkts ?? 0)},
     {(item.U_PcPerPkt ?? 0)},
-
+ 
     {(item.U_UnitWt ?? 0)},
     {(item.U_PckgWt ?? 0)},
     {(item.U_GrossWt ?? 0)},
     {(item.U_NetWt ?? 0)},
     {(item.U_TheoWt ?? 0)},
-
+ 
     {(item.U_OBThick1 ?? 0)},
     {(item.U_OBThick2 ?? 0)},
     {(item.U_OBWidth1 ?? 0)},
     {(item.U_OBWidth2 ?? 0)},
     {(item.U_OBLen1 ?? 0)},
     {(item.U_OBLen2 ?? 0)},
-
+ 
     '{item.U_IPLevel ?? ""}',
     {(item.U_IPSchPcs ?? 0)},
     '{item.U_IPUOM ?? ""}',
-
+ 
     '{item.U_CustCode ?? ""}',
     '{item.U_CustName ?? ""}',
-
+ 
     '{item.U_MTS ?? ""}',
     {(item.U_OPLn ?? "")},
     '{item.U_OPLevel ?? ""}',
-
+ 
     '{item.U_OPForm ?? ""}',
     '{item.U_OPGrade ?? ""}',
-
+ 
     {(item.U_OPThick ?? 0)},
     {(item.U_OPWidth ?? 0)},
-
+ 
     '{item.U_Type ?? ""}',
     '{item.U_EqSpec ?? ""}',
-
+ 
     {(item.U_Length1 ?? 0)},
     {(item.U_Length2 ?? 0)},
-
+ 
     {(item.U_Pitch ?? 0)},
-
+ 
     {(item.U_PurPrc ?? 0)},
     {(item.U_PrmVal ?? 0)},
     {(item.U_ScrPrc ?? 0)},
     {(item.U_ScrVal ?? 0)},
     {(item.U_UnitPrc ?? 0)},
-
+ 
     '{item.U_UOM ?? ""}',
     '{item.U_Whse ?? ""}',
-
+ 
     '{item.U_FGRef ?? ""}',
     '{item.U_FGWhs ?? ""}',
-
+ 
     '{item.U_WIP ?? ""}',
-
+ 
     NULL,
     NULL,
-
+ 
     '{item.U_SODN ?? ""}',
     '{item.U_SOLn ?? ""}',
     {(item.U_SODE ?? 0)},
-
+ 
     '{item.U_QDCNo ?? ""}',
     '{item.U_QDCDE ?? ""}',
     '{item.U_QDCObj ?? ""}',
-
+ 
     NULL, NULL, NULL, NULL,
-
+ 
     '{item.U_QCSts ?? ""}',
     '{item.U_ExeSts ?? ""}',
-
+ 
     {(item.U_MinPkWt ?? 0)},
     {(item.U_MaxPkWt ?? 0)},
-
+ 
     '{item.U_Surface ?? ""}',
     '{item.U_Coating ?? ""}',
     '{item.U_Oiling ?? ""}',
     '{item.U_Edge ?? ""}',
-
+ 
     '{item.U_VPDE ?? ""}',
     '{item.U_VPPrcLn ?? ""}',
-
+ 
     '{payload.MachineCode ?? ""}',
     '{item.U_Status ?? "Open"}',
-
+ 
     '{item.U_Edgebur ?? "N"}',
     '{item.U_OilStain ?? "N"}',
     '{item.U_Coilset ?? "N"}',
@@ -961,10 +968,10 @@ VALUES
     '{item.U_crosbow ?? "N"}',
     '{item.U_Pinhole ?? "N"}',
     '{item.U_dentgoug ?? "N"}',
-
+ 
     '{payload.PostDate:yyyy-MM-dd}',
     '{payload.PostDate:yyyy-MM-dd}',
-
+ 
     '{item.U_Remark ?? ""}',
     '{item.U_Operator ?? ""}'
 )";
