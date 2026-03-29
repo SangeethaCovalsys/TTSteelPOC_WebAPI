@@ -2,9 +2,11 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using PortalAPI.Data;
+using Newtonsoft.Json.Linq;
 using System.Data;
+using TTSteelWebAPI.Data;
 using TTSteelWebAPI.Model;
+using TTSteelWebAPI.Service;
 using static TTSteelWebAPI.Model.ProductionExceutionPost;
 using static TTSteelWebAPI.Model.ProductionExecutionClass;
 
@@ -15,6 +17,7 @@ namespace TTSteelWebAPI.Controllers
     public class ProductionExecutionController : ControllerBase
     {
         private readonly DbConectionContext _databaseContext;
+        private readonly SapService _sapService;
         // private readonly ILogger<LoginController> _logger;
         string _dbType = string.Empty;
         string _query = string.Empty;
@@ -23,10 +26,10 @@ namespace TTSteelWebAPI.Controllers
         string _CompanyDbName = string.Empty;
         string _location = string.Empty;
 
-        public ProductionExecutionController(DbConectionContext databaseContext, IConfiguration configuration)
+        public ProductionExecutionController(DbConectionContext databaseContext, IConfiguration configuration,SapService sapService)
         {
             _databaseContext = databaseContext;
-
+            _sapService = sapService;
             _CompanyDbName = configuration.GetValue<string>("CompanyName");
             _location = configuration.GetValue<string>("FileLocation");
         }
@@ -455,7 +458,7 @@ INSERT INTO ""@CCO_TRNS_PRDEXE_HD""
     ""U_WhsCode"", ""U_FGWhs"", ""U_SchId"", ""U_SchNo"",
     ""U_SchDt"", ""U_ProdType"", ""U_UnitCode"", ""U_ProdDt"",
     ""U_SchSts"", ""U_ProcCode"", ""U_OpID"", ""U_Operator"",
-    ""U_StartHrs"", ""U_EndHrs"", ""U_StartDate"", ""U_EndDate"",""U_ShiftA""
+    ""U_StartHrs"", ""U_EndHrs"", ""U_StartDate"", ""U_EndDate"", ""U_ShiftA""
 )
 VALUES
 (
@@ -477,12 +480,16 @@ VALUES
     '{payload.U_SchId ?? ""}',
     '{payload.U_SchNo ?? ""}',
 
-    NULL,
+    {(payload.U_SchDt == null
+        ? "NULL"
+        : $"'{payload.U_SchDt:yyyy-MM-dd HH:mm:ss}'")},
 
     '{payload.U_ProdType ?? ""}',
     '{payload.U_UnitCode ?? ""}',
 
-    {(payload.U_ProdDt == null ? "NULL" : $"'{payload.U_ProdDt:yyyy-MM-dd}'")},
+    {(payload.U_ProdDt == null
+        ? "NULL"
+        : $"'{payload.U_ProdDt:yyyy-MM-dd HH:mm:ss}'")},
 
     '{payload.U_SchSts ?? ""}',
     '{payload.U_ProcCode ?? ""}',
@@ -499,7 +506,8 @@ VALUES
     {(payload.U_EndDate == null
         ? "NULL"
         : $"'{payload.U_EndDate:yyyy-MM-dd HH:mm:ss}'")},
-'{payload.U_ShiftA}'
+
+    '{payload.U_ShiftA ?? ""}'
 )";
 
                 await conn.ExecuteAsync(headerQuery, transaction: trans);
@@ -782,7 +790,8 @@ VALUES
 
                         var batchNum = await conn.ExecuteScalarAsync<string>(
                             $@"CALL ""BatchGeneration_PRDEXE""('{formattedDate}', '{payload.MachineCode}')",
-                            transaction: trans
+                            transaction: trans,
+                             commandTimeout: 120
                         );
                         // assign batch to item
                         item.U_OPBatch = batchNum;
@@ -1030,5 +1039,360 @@ VALUES
 
             return Ok(header);
         }
+
+        [HttpPost("CreateGoodsIssue")]
+        public async Task<IActionResult> CreateGoodsIssue([FromQuery] int docEntry)
+        {
+            using var conn = _databaseContext.CreateConnection();
+            conn.Open();
+
+            using var trans = conn.BeginTransaction();
+
+            try
+            {
+                // ================= 1. FETCH DATA =================
+                var sql = $@"
+SELECT 
+    t.""DocEntry"",
+    t.""Object"",
+    t.""U_Source"",
+    t.""U_SchNo"",
+    t.""U_SchId"",
+    t.""U_WhsCode"",
+    t.""U_IPItem"" AS ""ItemCode"",
+    SUM(IFNULL(t.""U_IPQty"",0)) AS ""Quantity"",
+    t.""U_IPBatch"" AS ""BatchNum""
+FROM 
+(
+    SELECT  
+        T0.""DocEntry"",
+        T0.""Object"",
+        T0.""U_Source"",
+        T0.""U_SchNo"",
+        T0.""U_SchId"",
+        T0.""U_WhsCode"",
+        T1.""U_ItemCode"" AS ""U_IPItem"",
+        SUM(IFNULL(T1.""U_SchQty"",0)) AS ""U_IPQty"",
+        T1.""U_IPBatch""
+    FROM ""@CCO_TRNS_PRDEXE_HD"" T0
+    INNER JOIN ""@CCO_TRNS_PRDEXE_C1"" T1  
+        ON T0.""DocEntry"" = T1.""DocEntry""
+    WHERE 
+        T0.""DocEntry"" = {docEntry}
+        AND T1.""U_Select"" = 'Y'
+        AND IFNULL(T1.""U_Status"",'Open') = 'Open'
+    GROUP BY 
+        T0.""DocEntry"",
+        T0.""Object"",
+        T0.""U_Source"",
+        T0.""U_SchNo"",
+        T0.""U_SchId"",
+        T0.""U_WhsCode"",
+        T1.""U_ItemCode"",
+        T1.""U_IPBatch""
+) t
+GROUP BY 
+    t.""DocEntry"",
+    t.""Object"",
+    t.""U_Source"",
+    t.""U_SchNo"",
+    t.""U_SchId"",
+    t.""U_WhsCode"",
+    t.""U_IPItem"",
+    t.""U_IPBatch"";
+";
+
+                var data = (await conn.QueryAsync(sql, transaction: trans)).ToList();
+
+                if (!data.Any())
+                    return BadRequest("No data found for Goods Issue");
+
+                // ================= 2. BUILD SAP PAYLOAD =================
+                var payload = new SapReceiptOIGN
+                {
+                    DocDate = DateTime.Now,
+                    Comments = $"Auto Goods Issue from PRDEXE - {docEntry}",
+
+                    U_DocType = data.First().U_Source == "Jobwork" ? "J" : data.First().U_Source == "Own" ? "N" : "",
+                    U_SrcObj = data.First().Object,
+                    U_SchNo = data.First().U_SchNo,
+
+                    DocumentLines = data
+                        .GroupBy(x => new { x.ItemCode, x.U_WhsCode })
+                        .Select(g => new SapReceiptLine
+                        {
+                            ItemCode = g.Key.ItemCode,
+                            WarehouseCode = g.Key.U_WhsCode,
+                            Quantity = g.Sum(x => (decimal)x.Quantity),
+
+                            BatchNumbers = g.Select(x => new SapBatch
+                            {
+                                BatchNumber = x.BatchNum,
+                                Quantity = x.Quantity
+                            }).ToList()
+                        }).ToList()
+                };
+
+                // ================= 3. CALL SAP =================
+                var sapResult = await _sapService.PostAsync("InventoryGenExits", payload);
+                var resultJson = JObject.Parse(sapResult);
+
+                var sapDocEntry = resultJson["DocEntry"]?.Value<int>();
+
+                if (sapDocEntry == null)
+                    throw new Exception("SAP Goods Issue failed");
+
+                // ================= 4. UPDATE C3 =================
+                var updateSql = $@"
+UPDATE ""@CCO_TRNS_PRDEXE_C3"" 
+SET ""U_GIDE"" = {sapDocEntry} 
+WHERE ""DocEntry"" = {docEntry}";
+
+                await conn.ExecuteAsync(updateSql, transaction: trans);
+
+                // ================= COMMIT =================
+                trans.Commit();
+
+                return Ok(new
+                {
+                    message = "Goods Issue created & C3 updated successfully",
+                    sapDocEntry = sapDocEntry
+                });
+            }
+            catch (Exception ex)
+            {
+                trans.Rollback();
+
+                return StatusCode(500, new
+                {
+                    message = "Error creating Goods Issue",
+                    error = ex.Message
+                });
+            }
+        }
+        [HttpPost("CreateGoodsReceipt")]
+        public async Task<IActionResult> CreateGoodsReceipt([FromQuery] int docEntry)
+        {
+            using var conn = _databaseContext.CreateConnection();
+            conn.Open();
+
+            using var trans = conn.BeginTransaction();
+
+            try
+            {
+                // ================= 1. FETCH DATA =================
+                var sql = $@"
+SELECT 
+    t.""DocEntry"",
+    t.""Object"",
+    t.""U_Source"",
+    t.""U_SchNo"",
+    t.""U_SchId"",
+    t.""U_WhsCode"",
+    t.""U_IPItem"" AS ""ItemCode"",
+    SUM(IFNULL(t.""U_IPQty"",0)) AS ""Quantity"",
+    t.""U_IPBatch"" AS ""BatchNum""
+FROM 
+(
+    SELECT  
+        T0.""DocEntry"",
+        T0.""Object"",
+        T0.""U_Source"",
+        T0.""U_SchNo"",
+        T0.""U_SchId"",
+        T0.""U_WhsCode"",
+        T1.""U_ItemCode"" AS ""U_IPItem"",
+        SUM(IFNULL(T1.""U_SchQty"",0)) AS ""U_IPQty"",
+        T1.""U_IPBatch""
+    FROM ""@CCO_TRNS_PRDEXE_HD"" T0
+    INNER JOIN ""@CCO_TRNS_PRDEXE_C1"" T1  
+        ON T0.""DocEntry"" = T1.""DocEntry""
+    WHERE 
+        T0.""DocEntry"" = {docEntry}
+        AND T1.""U_Select"" = 'Y'
+        AND IFNULL(T1.""U_Status"",'Open') = 'Open'
+    GROUP BY 
+        T0.""DocEntry"",
+        T0.""Object"",
+        T0.""U_Source"",
+        T0.""U_SchNo"",
+        T0.""U_SchId"",
+        T0.""U_WhsCode"",
+        T1.""U_ItemCode"",
+        T1.""U_IPBatch""
+) t
+GROUP BY 
+    t.""DocEntry"",
+    t.""Object"",
+    t.""U_Source"",
+    t.""U_SchNo"",
+    t.""U_SchId"",
+    t.""U_WhsCode"",
+    t.""U_IPItem"",
+    t.""U_IPBatch"";
+";
+
+                var data = (await conn.QueryAsync(sql, transaction: trans)).ToList();
+
+                if (!data.Any())
+                    return BadRequest("No data found for Goods Receipt");
+
+                // ================= 2. BUILD PAYLOAD =================
+                var payload = new SapReceiptOIGN
+                {
+                    DocDate = DateTime.Now,
+                    Comments = $"Auto GR from PRDEXE - {docEntry}",
+
+                    U_DocType = data.First().U_Source == "Jobwork" ? "J" : data.First().U_Source == "Own" ? "N" : "",
+                    U_SrcObj = data.First().Object,
+                    U_SchNo = data.First().U_SchNo,
+
+                    DocumentLines = data
+                        .GroupBy(x => new { x.ItemCode, x.U_WhsCode })
+                        .Select(g => new SapReceiptLine
+                        {
+                            ItemCode = g.Key.ItemCode,
+                            WarehouseCode = g.Key.U_WhsCode,
+                            Quantity = g.Sum(x => (decimal)x.Quantity),
+
+                            BatchNumbers = g.Select(x => new SapBatch
+                            {
+                                BatchNumber = x.BatchNum,
+                                Quantity = x.Quantity
+                            }).ToList()
+                        }).ToList()
+                };
+
+                // ================= 3. CALL SAP =================
+                var sapResult = await _sapService.PostAsync("InventoryGenEntries", payload);
+                var resultJson = JObject.Parse(sapResult);
+
+                var sapDocEntry = resultJson["DocEntry"]?.Value<int>();
+
+                if (sapDocEntry == null)
+                    throw new Exception("SAP Goods Receipt failed");
+
+                // ================= 4. UPDATE C3 =================
+                var updateSql = $@"
+UPDATE ""@CCO_TRNS_PRDEXE_C3"" 
+SET ""U_GRDE"" = {sapDocEntry} 
+WHERE ""DocEntry"" = {docEntry}";
+
+                await conn.ExecuteAsync(updateSql, transaction: trans);
+
+                // ================= COMMIT =================
+                trans.Commit();
+
+                return Ok(new
+                {
+                    message = "Goods Receipt created & C3 updated successfully",
+                    sapDocEntry = sapDocEntry
+                });
+            }
+            catch (Exception ex)
+            {
+                trans.Rollback();
+
+                return StatusCode(500, new
+                {
+                    message = "Error creating Goods Receipt",
+                    error = ex.Message
+                });
+            }
+        }
+        [HttpGet("GetDbList")]
+
+        public async Task<IActionResult> GetDbList()
+
+        {
+
+            try
+
+            {
+
+                using var conn = _databaseContext.CreateConnection();
+
+                conn.Open();
+
+                var query = @"
+
+                    SELECT SCHEMA_NAME ""DBNAME""
+
+                    FROM SYS.SCHEMAS
+
+                    WHERE SCHEMA_NAME ='PHI_LIVE_04032026'";
+
+                var result = await conn.QueryFirstOrDefaultAsync(query);
+
+                return Ok(result);
+
+            }
+
+            catch (Exception ex)
+
+            {
+
+                return StatusCode(500, new
+
+                {
+
+                    message = "Error fetching unit counts",
+
+                    error = ex.Message
+
+                });
+
+            }
+
+        }
+
+        [HttpGet("GetWorkOrderLableDetails")]
+
+        public async Task<IActionResult> GetWorkOrderLableDetails([FromQuery] string? DocEntry)
+
+        {
+
+            try
+
+            {
+
+                using var conn = _databaseContext.CreateConnection();
+
+                conn.Open();
+
+                var query = $@"
+
+                    SELECT T0.""U_SchQty"",T0.""U_CoilNo"",
+
+T1.""U_OBThick1"",T1.""U_OBWidth1"",T1.""U_SOPcs"",T1.""U_Pkts"" 
+
+FROM ""@CCO_TRNS_PRDEXE_C1"" T0 inner join ""@CCO_TRNS_PRDEXE_C3"" T1
+
+on T0.""DocEntry"" = T1.""DocEntry""  Where T0.""DocEntry""='{DocEntry}'";
+
+                var result = await conn.QueryFirstOrDefaultAsync(query);
+
+                return Ok(result);
+
+            }
+
+            catch (Exception ex)
+
+            {
+
+                return StatusCode(500, new
+
+                {
+
+                    message = "Error fetching unit counts",
+
+                    error = ex.Message
+
+                });
+
+            }
+
+        }
+
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.Data.SqlClient;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TTSteelWebAPI.Model
@@ -607,6 +608,33 @@ namespace TTSteelWebAPI.Model
 
             public List<CCO_TRNS_PRDEXE_C3> C3List { get; set; }
 
+        }
+
+        public class SapReceiptOIGN
+        {
+            public DateTime DocDate { get; set; }
+            public string? Comments { get; set; }
+
+            public string? U_DocType { get; set; }   // U_Source
+            public string? U_SchNo { get; set; }
+            public string? U_SrcObj { get; set; }
+
+            public List<SapReceiptLine> DocumentLines { get; set; } = new();
+        }
+
+        public class SapReceiptLine
+        {
+            public string ItemCode { get; set; }
+            public string WarehouseCode { get; set; }
+            public decimal Quantity { get; set; }
+
+            public List<SapBatch> BatchNumbers { get; set; } = new();
+        }
+
+        public class SapBatch
+        {
+            public string BatchNumber { get; set; }
+            public decimal Quantity { get; set; }
         }
 
     }
