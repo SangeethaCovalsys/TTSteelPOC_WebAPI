@@ -11,11 +11,11 @@ using RTools_NTS.Util;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using TTSteelWebAPI.Service;
+
 
 namespace TTSteelWebAPI.Controllers
 {
-    [Route("cvs/")]
+    [Route("api/")]
     [ApiController]
     public class LoginController : ControllerBase
     {

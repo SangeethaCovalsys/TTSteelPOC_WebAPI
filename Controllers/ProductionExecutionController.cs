@@ -96,41 +96,45 @@ namespace TTSteelWebAPI.Controllers
 
         
         [HttpGet("GetSchduleOfJobOwn")]
-        public async Task<IActionResult> GetScheduleDetails([FromQuery] string unitCode, [FromQuery] string source)
+public async Task<IActionResult> GetScheduleDetails([FromQuery] string unitCode, [FromQuery] string source)
+{
+    try
+    {
+        using var conn = _databaseContext.CreateConnection();
+        conn.Open();
+
+        var query = $@"
+SELECT DISTINCT  
+    a.""U_SchNo"",
+    b.""U_CustName"",
+    d.""U_Grade"",
+    a.""U_TIPSQty"",
+    d.""U_CoilNo"" 
+FROM ""@CCO_TRNS_PRCSCH_HD"" a  
+INNER JOIN ""@CCO_TRNS_PRCSCH_C2"" b ON a.""DocEntry"" = b.""DocEntry""
+INNER JOIN ""@CCO_TRNS_PRCSCH_C1"" c ON c.""DocEntry"" = b.""DocEntry""
+INNER JOIN OBTN d ON d.""DistNumber"" = c.""U_IPBatch"" 
+                AND d.""ItemCode"" = c.""U_ItemCode""
+WHERE 
+    a.""U_SchSts"" NOT IN ('Cancelled','Completed','Planned','Completed-old') 
+    AND a.""U_Source"" = '{source}' 
+    AND a.""U_UnitCode"" = '{unitCode}'
+ORDER BY a.""U_SchNo"" DESC
+";
+
+        var result = await conn.QueryAsync<ScheduleDto>(query);
+
+        return Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new
         {
-            try
-            {
-                using var conn = _databaseContext.CreateConnection();
-                conn.Open();
-
-                var query = $@"
-            SELECT DISTINCT  
-                a.""U_SchNo"",
-                b.""U_CustName"",
-                d.""U_Grade"",
-                a.""U_TIPSQty"",
-                d.""U_CoilNo"" 
-            FROM ""@CCO_TRNS_PRCSCH_HD"" a  
-            INNER JOIN ""@CCO_TRNS_PRCSCH_C2"" b ON a.""DocEntry"" = b.""DocEntry""
-            INNER JOIN ""@CCO_TRNS_PRCSCH_C1"" c ON c.""DocEntry"" = b.""DocEntry""
-            INNER JOIN OBTN d ON d.""DistNumber"" = c.""U_IPBatch"" 
-                            AND d.""ItemCode"" = c.""U_ItemCode""
-            WHERE a.""U_SchSts"" NOT IN ('Cancelled','Completed','Planned','Completed-old') 
-              AND a.""U_Source"" = '{source}' AND a.""U_UnitCode"" = '{unitCode}' ";// Source code pass Jobwork, Own and Unit Pass STL,CTL1,Rewindor 
-
-                var result = await conn.QueryAsync<ScheduleDto>(query);
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new
-                {
-                    message = "Error fetching schedule details",
-                    error = ex.Message
-                });
-            }
-        }
+            message = "Error fetching schedule details",
+            error = ex.Message
+        });
+    }
+}
         [HttpGet("GetScheduleSizeCount")]
         public async Task<IActionResult> GetScheduleSizeCount([FromQuery]string schNo)
         {
@@ -1113,7 +1117,12 @@ GROUP BY
                     DocDate = DateTime.Now,
                     Comments = $"Auto Goods Issue from PRDEXE - {docEntry}",
 
-                    U_DocType = data.First().U_Source == "Jobwork" ? "J" : data.First().U_Source == "Own" ? "N" : "",
+                    U_DocType =
+    (data.First().U_Source == "Jobwork" || data.First().U_Source == "Job-Work")
+        ? "J"
+        : (data.First().U_Source == "Own" || data.First().U_Source == "OWN")
+            ? "N"
+            : "",
                     U_SrcObj = data.First().Object,
                     U_SchNo = data.First().U_SchNo,
 
@@ -1243,8 +1252,12 @@ GROUP BY
                     DocDate = DateTime.Now,
                     Comments = $"Auto GR from PRDEXE - {docEntry}",
 
-                    U_DocType = data.First().U_Source == "Jobwork" ? "J" : data.First().U_Source == "Own" ? "N" : "",
-                    U_SrcObj = data.First().Object,
+                    U_DocType =
+    (data.First().U_Source == "Jobwork" || data.First().U_Source == "Job-Work")
+        ? "J"
+        : (data.First().U_Source == "Own" || data.First().U_Source == "OWN")
+            ? "N"
+            : "", U_SrcObj = data.First().Object,
                     U_SchNo = data.First().U_SchNo,
 
                     DocumentLines = data
@@ -1390,8 +1403,69 @@ on T0.""DocEntry"" = T1.""DocEntry""  Where T0.""DocEntry""='{DocEntry}'";
 
                 });
 
+
             }
 
+        }
+        [HttpGet("GetLast7DaysProduction")]
+        public async Task<IActionResult> GetLast7DaysProduction()
+        {
+            using var conn = _databaseContext.CreateConnection();
+            conn.Open();
+
+            try
+            {
+                var sql = @"
+SELECT 
+    T0.""U_SchNo""        AS ""SchNo"",
+    
+   CASE 
+    WHEN T0.""U_UnitCode"" LIKE 'STL%' THEN 'Slitting'
+    WHEN T0.""U_UnitCode"" LIKE 'CTL%' THEN 'Cut to Length'
+    ELSE T0.""U_UnitCode""
+END AS ""U_UnitCode"",
+
+    T1.""U_JBName""      AS ""CustName"",
+    T1.""U_Grade""       AS ""Grade"",
+
+    SUM(IFNULL(T1.""U_ActlQty"", 0)) AS ""OrderQty"",
+    MAX(T0.""CreateDate"") AS ""CreateDate""
+
+FROM ""@CCO_TRNS_PRDEXE_HD"" T0
+INNER JOIN ""@CCO_TRNS_PRDEXE_C1"" T1 
+    ON T0.""DocEntry"" = T1.""DocEntry""
+
+WHERE 
+    T0.""CreateDate"" >= ADD_DAYS(CURRENT_DATE, -7)
+    AND T1.""U_Select"" = 'Y'
+
+GROUP BY 
+    T0.""U_SchNo"",
+    T0.""U_UnitCode"",
+    T1.""U_JBName"",
+    T1.""U_Grade""
+
+ORDER BY 
+    MAX(T0.""CreateDate"") DESC
+";
+
+                var result = await conn.QueryAsync(sql);
+
+                return Ok(new
+                {
+                    message = "Last 7 days production data fetched successfully",
+                    count = result.Count(),
+                    data = result
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Error fetching last 7 days data",
+                    error = ex.Message
+                });
+            }
         }
 
     }
