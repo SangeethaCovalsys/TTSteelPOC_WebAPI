@@ -1,6 +1,5 @@
-using PortalAPI.Data;
-using System.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using TTSteelWebAPI.Data;
 using TTSteelWebAPI.Interface;
 using TTSteelWebAPI.Service;
@@ -9,33 +8,34 @@ using TTSteelWebAPI.Service;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddScoped<ICurrentUserInterface,CurrentUserService>();
+builder.Services.AddScoped<ICurrentUserInterface, CurrentUserService>();
 
 // db name dynamically change based on user login db name.
 builder.Services.AddHttpContextAccessor();
-//builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
-//{
-//    var httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
-//    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+builder.Services.AddScoped<DbConectionContext>();
+builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+{
+    var httpContextAccessor = serviceProvider.GetRequiredService<IHttpContextAccessor>();
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
 
-//    var baseConnection = configuration.GetConnectionString("HanaCon");
+    var baseConnection = configuration.GetConnectionString("HanaCon");
 
-//    var dbName = httpContextAccessor.HttpContext?.User?.FindFirst("Database")?.Value;
-//    var builderConn = new SqlConnectionStringBuilder(baseConnection);
+    //var dbName = httpContextAccessor.HttpContext?.User?.FindFirst("Database")?.Value;
+    //var builderConn = new SqlConnectionStringBuilder(baseConnection);
 
-//    if (!string.IsNullOrEmpty(dbName))
-//    {
-//        builderConn.InitialCatalog = dbName;   // change database safely 
-//        options.UseSqlServer(builderConn.ConnectionString);
-//    }
-//    else
-//    {
-//        options.UseSqlServer(baseConnection);
-//    }
-//});
+    //if (!string.IsNullOrEmpty(dbName))
+    //{
+    //    builderConn.InitialCatalog = dbName;   // change database safely 
+    //    options.UseSqlServer(builderConn.ConnectionString);
+    //}
+    //else
+    //{
+    //    options.UseSqlServer(baseConnection);
+    //}
+});
 
 //builder.Services.AddDbContext<SboCommonContext>(options =>
-//    options.UseSqlServer(builder.Configuration.GetConnectionString("SboCommonConnection")));
+//options.UseSqlServer(builder.Configuration.GetConnectionString("SboCommonConnection")));
 
 var sapBaseUrl = builder.Configuration["SapSettings:BaseUrl"];
 

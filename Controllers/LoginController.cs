@@ -39,8 +39,8 @@ namespace TTSteelWebAPI.Controllers
             try
             {
                 var result = await _sapService.LoginUserAsync(loginModel);
-                var tokenJwt = GenerateJwtToken(loginModel.UserName, loginModel.Password, loginModel.CompanyDB);
-                return Ok(new { data = result, token = tokenJwt, });
+                //var tokenJwt = GenerateJwtToken(loginModel.UserName, loginModel.Password, loginModel.CompanyDB);
+                return Ok(new { data = result });
             }
             catch (Exception ex)
             {
