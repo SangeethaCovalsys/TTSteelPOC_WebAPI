@@ -7,6 +7,7 @@ using System.Data;
 using TTSteelWebAPI.Data;
 using TTSteelWebAPI.Model;
 using TTSteelWebAPI.Service;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using static TTSteelWebAPI.Model.ProductionExceutionPost;
 using static TTSteelWebAPI.Model.ProductionExecutionClass;
 
@@ -1180,7 +1181,7 @@ WHERE ""DocEntry"" = {docEntry}";
             }
         }
         [HttpPost("CreateGoodsReceipt")]
-        public async Task<IActionResult> CreateGoodsReceipt([FromQuery] int docEntry)
+        public async Task<IActionResult> CreateGoodsReceipt([FromQuery] int docEntry, [FromQuery] string sch_no)
         {
             using var conn = _databaseContext.CreateConnection();
             conn.Open();
@@ -1259,6 +1260,15 @@ SET ""U_GRDE"" = {sapDocEntry}
 WHERE ""DocEntry"" = {docEntry}";
 
                 await conn.ExecuteAsync(updateSql, transaction: trans);
+                var CCO_TRNS_PRDEXE_HD = $@" Update ""@CCO_TRNS_PRDEXE_HD"" set ""U_SchSts""='Completed' Where ""U_SchNo""='{sch_no}' and ""DocEntry""={docEntry}";
+         
+
+                await conn.ExecuteAsync(CCO_TRNS_PRDEXE_HD, transaction: trans);
+                var CCO_TRNS_PRCSCH_HD = $@" Update ""@CCO_TRNS_PRCSCH_HD"" set ""U_SchSts""='Completed' Where ""U_SchNo""='{sch_no}'";
+
+
+                await conn.ExecuteAsync(CCO_TRNS_PRCSCH_HD, transaction: trans);
+
 
                 // ================= COMMIT =================
                 trans.Commit();
