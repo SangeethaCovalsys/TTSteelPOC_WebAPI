@@ -781,6 +781,19 @@ VALUES
 
             try
             {
+                if (payload.BundleDetails != null && payload.BundleDetails.Any())
+                {
+                    foreach (var bundle in payload.BundleDetails)
+                    {
+                        string updateC2Query = $@"
+            UPDATE ""@CCO_TRNS_PRDEXE_C2""
+            SET ""U_ActPkt"" = {bundle.BundleQty}
+            WHERE ""DocEntry"" = {payload.DocEntry}
+              AND ""LineId"" = {bundle.LineId}
+        ";
+                        await conn.ExecuteAsync(updateC2Query, transaction: trans);
+                    }
+                }
                 if (payload.C3List != null)
                 {
                     for (int i = 0; i < payload.C3List.Count; i++)

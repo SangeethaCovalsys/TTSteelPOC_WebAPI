@@ -607,7 +607,14 @@ namespace TTSteelWebAPI.Model
             public string MachineCode { get; set; }
 
             public List<CCO_TRNS_PRDEXE_C3> C3List { get; set; }
+            public List<BundleDetail> BundleDetails { get; set; }
 
+        }
+        public class BundleDetail
+        {
+            public int LineId { get; set; }
+            public int BundleQty { get; set; }
+           
         }
 
         public class SapReceiptOIGN
@@ -636,6 +643,7 @@ namespace TTSteelWebAPI.Model
             public string BatchNumber { get; set; }
             public decimal Quantity { get; set; }
         }
+
         public class WorkOrderLabelDto
         {
             public decimal U_SchQty { get; set; }
