@@ -1351,7 +1351,8 @@ SELECT
     T1.""U_crosbow"",
     T1.""U_Pinhole"",
     T1.""U_dentgoug"",
-
+T1.""U_OPBatch"",
+    T1.""U_NetWt"",
     T1.""U_OPThick"",
     T1.""U_OPWidth"",
 T1.""U_OPGrade"",

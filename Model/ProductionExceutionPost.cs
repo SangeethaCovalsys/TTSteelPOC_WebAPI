@@ -653,9 +653,11 @@ namespace TTSteelWebAPI.Model
             public string? U_crosbow { get; set; }
             public string? U_Pinhole { get; set; }
             public string? U_dentgoug { get; set; }
+            public string? U_OPBatch { get; set; }
 
-            public decimal? U_OBThick { get; set; }
-            public decimal? U_OBWidth { get; set; }
+            public decimal? U_OPThick { get; set; }
+            public decimal? U_NetWt { get; set; }
+            public decimal? U_OPWidth { get; set; }
             public string? U_OPGrade { get; set; }
             public int? U_SOPcs { get; set; }
             public int? U_Pkts { get; set; }
