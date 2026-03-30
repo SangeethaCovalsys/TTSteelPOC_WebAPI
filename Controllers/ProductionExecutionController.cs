@@ -1191,55 +1191,20 @@ WHERE ""DocEntry"" = {docEntry}";
             {
                 // ================= 1. FETCH DATA =================
                 var sql = $@"
-SELECT 
-    t.""DocEntry"",
-    t.""Object"",
-    t.""U_Source"",
-    t.""U_SchNo"",
-    t.""U_SchId"",
-    t.""U_WhsCode"",
-    t.""U_IPItem"" AS ""ItemCode"",
-    SUM(IFNULL(t.""U_IPQty"",0)) AS ""Quantity"",
-    t.""U_IPBatch"" AS ""BatchNum""
-FROM 
-(
-    SELECT  
-        T0.""DocEntry"",
-        T0.""Object"",
-        T0.""U_Source"",
-        T0.""U_SchNo"",
-        T0.""U_SchId"",
-        T0.""U_WhsCode"",
-        T1.""U_ItemCode"" AS ""U_IPItem"",
-        SUM(IFNULL(T1.""U_SchQty"",0)) AS ""U_IPQty"",
-        T1.""U_IPBatch""
-    FROM ""@CCO_TRNS_PRDEXE_HD"" T0
-    INNER JOIN ""@CCO_TRNS_PRDEXE_C1"" T1  
-        ON T0.""DocEntry"" = T1.""DocEntry""
-    WHERE 
-        T0.""DocEntry"" = {docEntry}
-        AND T1.""U_Select"" = 'Y'
-        AND IFNULL(T1.""U_Status"",'Open') = 'Open'
-    GROUP BY 
-        T0.""DocEntry"",
-        T0.""Object"",
-        T0.""U_Source"",
-        T0.""U_SchNo"",
-        T0.""U_SchId"",
-        T0.""U_WhsCode"",
-        T1.""U_ItemCode"",
-        T1.""U_IPBatch""
-) t
-GROUP BY 
-    t.""DocEntry"",
-    t.""Object"",
-    t.""U_Source"",
-    t.""U_SchNo"",
-    t.""U_SchId"",
-    t.""U_WhsCode"",
-    t.""U_IPItem"",
-    t.""U_IPBatch"";
-";
+SELECT  T0.""DocEntry"" , T0.""Object"", T0.""U_Source"", T0.""U_SchNo"",  T0.""U_UnitCode"", T0.""U_SchId"",
+T0.""U_FGWhs"" ,  T1.""U_CustCode"" , T1.""U_CustName"" , T1.""U_MTS""
+,  T1.""U_WIP"",  T1.""U_OPType"", T1.""U_IPItem"" ,T1.""U_IPBatch""  , T1.""U_Whse""  ,T1.""U_OPItem""  ,T1.""U_OPBatch"" ,
+T1.""U_FGWhs"",T1.""U_SODN"" ,T1.""U_SODE""  ,T1.""U_SOLn""
+, T1.""U_GrossWt"",  T1.""U_PckgWt"" , T1.""U_PackID"" , T1.""U_OPSchPcs"" ,  T1.""U_PcPerPkt"" ,T1.""U_Pkts"",
+  T1.""U_NetWt"" as U_NetWt  , T1.""U_UnitPrc"" ,T0.""U_ProdDt""  
+,T1.""U_Location"",T1.""U_MBatch"" ,T1.""U_MCHallan"" ,T1.""U_MItem"" , T1.""U_OPGrade"", T1.""U_OPThick"", T1.""U_OPWidth"",
+  T1.""U_Length1"", T1.""U_Length2"" , T1.""U_Type"" 
+,T1.""U_MItem"" as MotherItem , T1.""U_OBThick1"", T1.""U_OBThick2"", T1.""U_OBWidth1"", T1.""U_OBWidth2"", T1.""U_OBLen1"",
+  T1.""U_OBLen2"", T1.""U_OBDig1""
+, T1.""U_OBDig2"" , T1.""U_QRmks1"", T1.""U_QRmks2"",t1.""U_QCSts"", T1.""U_ID"" , T1.""U_OD"" ,T1.""U_HeatNo"" FROM 
+""@CCO_TRNS_PRDEXE_HD"" T0 
+inner join  ""@CCO_TRNS_PRDEXE_C3"" T1  On t0.""DocEntry"" = T1.""DocEntry""  WHERE IFNULL(T1.""U_GRDE"" ,'') ='' 
+AND T0.""DocEntry"" = {docEntry} and t1.""U_Select"" ='Y'  and IFNULL(t1.""U_Status"",'Open') = 'Open';";
 
                 var data = (await conn.QueryAsync(sql, transaction: trans)).ToList();
 
@@ -1260,20 +1225,22 @@ GROUP BY
             : "", U_SrcObj = data.First().Object,
                     U_SchNo = data.First().U_SchNo,
 
-                    DocumentLines = data
-                        .GroupBy(x => new { x.ItemCode, x.U_WhsCode })
-                        .Select(g => new SapReceiptLine
-                        {
-                            ItemCode = g.Key.ItemCode,
-                            WarehouseCode = g.Key.U_WhsCode,
-                            Quantity = g.Sum(x => (decimal)x.Quantity),
+                    DocumentLines = data.Select(x => new SapReceiptLine
+                    {
+                        ItemCode = x.U_OPItem,              // ✅ Output Item
+                        WarehouseCode = x.U_FGWhs,          // ✅ FG Warehouse
 
-                            BatchNumbers = g.Select(x => new SapBatch
-                            {
-                                BatchNumber = x.BatchNum,
-                                Quantity = x.Quantity
-                            }).ToList()
-                        }).ToList()
+                        Quantity = (decimal)(x.U_NETWT ?? 0),  // ✅ Each row quantity
+
+                        BatchNumbers = new List<SapBatch>
+    {
+        new SapBatch
+        {
+            BatchNumber = x.U_OPBatch,      // ✅ Same row batch
+            Quantity = (decimal)(x.U_NETWT ?? 0)
+        }
+    }
+                    }).ToList()
                 };
 
                 // ================= 3. CALL SAP =================
@@ -1360,52 +1327,58 @@ WHERE ""DocEntry"" = {docEntry}";
         }
 
         [HttpGet("GetWorkOrderLableDetails")]
-
         public async Task<IActionResult> GetWorkOrderLableDetails([FromQuery] string? DocEntry)
-
         {
-
             try
-
             {
-
                 using var conn = _databaseContext.CreateConnection();
-
                 conn.Open();
 
                 var query = $@"
+SELECT 
+    T0.""U_SchQty"",
+    T0.""U_CoilNo"",
+    T0.""U_JBName"",
+    T2.""U_SchNo"",
 
-                    SELECT T0.""U_SchQty"",T0.""U_CoilNo"",
+    T1.""U_Edgebur"",
+    T1.""U_OilStain"",
+    T1.""U_Coilset"",
+    T1.""U_Telescop"",
+    T1.""U_Scalmark"",
+    T1.""U_surfscrh"",
+    T1.""U_RustOxd"",
+    T1.""U_crosbow"",
+    T1.""U_Pinhole"",
+    T1.""U_dentgoug"",
 
-T1.""U_OBThick1"",T1.""U_OBWidth1"",T1.""U_SOPcs"",T1.""U_Pkts"" 
+    T1.""U_OPThick"",
+    T1.""U_OPWidth"",
+T1.""U_OPGrade"",
+    T1.""U_SOPcs"",
+    T1.""U_Pkts""
 
-FROM ""@CCO_TRNS_PRDEXE_C1"" T0 inner join ""@CCO_TRNS_PRDEXE_C3"" T1
+FROM ""@CCO_TRNS_PRDEXE_C1"" T0 
+INNER JOIN ""@CCO_TRNS_PRDEXE_C3"" T1 
+    ON T0.""DocEntry"" = T1.""DocEntry"" 
+INNER JOIN ""@CCO_TRNS_PRDEXE_HD"" T2 
+    ON T0.""DocEntry"" = T2.""DocEntry"" 
 
-on T0.""DocEntry"" = T1.""DocEntry""  Where T0.""DocEntry""='{DocEntry}'";
+WHERE T0.""DocEntry"" = '{DocEntry}'
+";
 
-                var result = await conn.QueryFirstOrDefaultAsync(query);
+                var result = await conn.QueryAsync<WorkOrderLabelDto>(query);
 
                 return Ok(result);
-
             }
-
             catch (Exception ex)
-
             {
-
                 return StatusCode(500, new
-
                 {
-
                     message = "Error fetching unit counts",
-
                     error = ex.Message
-
                 });
-
-
             }
-
         }
         [HttpGet("GetLast7DaysProduction")]
         public async Task<IActionResult> GetLast7DaysProduction()

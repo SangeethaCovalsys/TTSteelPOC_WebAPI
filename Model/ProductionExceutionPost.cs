@@ -636,6 +636,30 @@ namespace TTSteelWebAPI.Model
             public string BatchNumber { get; set; }
             public decimal Quantity { get; set; }
         }
+        public class WorkOrderLabelDto
+        {
+            public decimal U_SchQty { get; set; }
+            public string? U_CoilNo { get; set; }
+            public string? U_JBName { get; set; }
+            public string? U_SchNo { get; set; }
+
+            public string? U_Edgebur { get; set; }
+            public string? U_OilStain { get; set; }
+            public string? U_Coilset { get; set; }
+            public string? U_Telescop { get; set; }
+            public string? U_Scalmark { get; set; }
+            public string? U_surfscrh { get; set; }
+            public string? U_RustOxd { get; set; }
+            public string? U_crosbow { get; set; }
+            public string? U_Pinhole { get; set; }
+            public string? U_dentgoug { get; set; }
+
+            public decimal? U_OBThick { get; set; }
+            public decimal? U_OBWidth { get; set; }
+            public string? U_OPGrade { get; set; }
+            public int? U_SOPcs { get; set; }
+            public int? U_Pkts { get; set; }
+        }
 
     }
 }
